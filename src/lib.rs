@@ -1,8 +1,13 @@
 #[macro_use]
 extern crate cpython;
 use cpython::{PyResult, Python};
+extern crate serde_json;
 
-//use targetlib;
+extern crate targetlib;
+use targetlib::{CPClient, CPSpec};
+// TODO:
+// we are converting back and forth between JSON and Rust Struct multiple
+// times. May want to just keep things in JSON throughout.
 
 fn clients_changed(_py: Python) -> PyResult<bool>{
     let result = targetlib::clients_changed();
@@ -14,26 +19,34 @@ fn get_client_info(_py: Python) -> PyResult<String> {
     let vec_result = targetlib::get_client_info();
     let mut str_result = String::new();
     for ci in vec_result {
-        str_result.push_str(&ci.to_string());
-        str_result.push_str(";");
+	let ci_str = serde_json::to_string(&ci)
+	    .unwrap_or_else(|_| panic!("Failed to json serialize {:?}", &ci));
+	str_result.push_str(&ci_str);
+        str_result.push_str("\n");
     }
     Ok(str_result)
 }
 
 
 fn assign_spec(_py: Python, client_str: &str, spec_str: &str) -> PyResult<u32> {
-    let spec = targetlib::CPSpec::from_str(spec_str).unwrap();
-    let client = targetlib::CPClient::from_string(client_str);
+    let client: CPClient = serde_json::from_str(client_str)
+	.unwrap_or_else(|_| panic!("Failed to json deserialize <{}>", client_str));
+    let spec: CPSpec = serde_json::from_str(spec_str).unwrap();
+    //.unwrap_or_else(|_| panic!("Failed to json deserialize <{}>", spec_str));
     targetlib::assign_spec(&client, spec);
     Ok(0)
 }
 
 fn get_events(_py: Python, client_str: &str) -> PyResult<String> {
-    let client = targetlib::CPClient::from_string(client_str);
+    let client: CPClient = serde_json::from_str(client_str)
+	.unwrap_or_else(|_| panic!("Failed to json deserialize <{}>", client_str));
     let events = targetlib::get_events(&client);
     let mut events_str = String::new();
     for e in events {
-        events_str.push_str(&e.to_string());
+	let e_str = serde_json::to_string(&e)
+	    .unwrap_or_else(|_| panic!("Failed to json serialize {:?}", &e));
+        events_str.push_str(&e_str);
+	events_str.push_str("\n");
     }
     Ok(events_str)
 }
